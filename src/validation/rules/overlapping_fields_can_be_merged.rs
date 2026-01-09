@@ -124,7 +124,7 @@ impl<K: Eq + Hash + Clone, V> OrderedMap<K, V> {
         }
     }
 
-    fn iter(&self) -> OrderedMapIter<K, V> {
+    fn iter<'a>(&'a self) -> OrderedMapIter<'a, K, V> {
         OrderedMapIter {
             map: &self.data,
             inner: self.insert_order.iter(),

@@ -34,9 +34,5 @@ pub mod static_graphql {
 
 pub mod introspection;
 
+pub mod parser;
 pub mod validation;
-
-#[cfg(feature = "graphql_parser")]
-pub extern crate graphql_parser as parser;
-#[cfg(feature = "graphql_parser_fork")]
-pub extern crate graphql_parser_hive_fork as parser;
