@@ -18,15 +18,10 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Test Rust
-        run: |
-          # features=graphql_parser_fork
-          cargo test --features graphql_parser_fork --no-default-features
-          # features=graphql_parser
-          cargo test
+        run: cargo test
+
+      - name: Benchmark Rust
+        run: cargo bench
 
       - name: Build Rust
-        run: |
-          # features=graphql_parser_fork
-          cargo build --release --features graphql_parser_fork --no-default-features
-          # features=graphql_parser
-          cargo build --release
+        run: cargo build --release
