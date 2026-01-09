@@ -75,6 +75,13 @@ impl Minifier {
         self.last_was_non_punctuator = false;
     }
 
+    #[inline(always)]
+    fn write_punctuator_char(&mut self, c: char) {
+        self.buf.push(c);
+        self.last_was_non_punctuator = false;
+    }
+
+    #[inline]
     fn write_document<'a, T: Text<'a>>(&mut self, doc: &Document<'a, T>) {
         for def in &doc.definitions {
             self.write_definition(def);
@@ -134,11 +141,11 @@ impl Minifier {
 
     #[inline]
     fn write_selection_set<'a, T: Text<'a>>(&mut self, set: &SelectionSet<'a, T>) {
-        self.write_punctuator("{");
+        self.write_punctuator_char('{');
         for item in &set.items {
             self.write_selection(item);
         }
-        self.write_punctuator("}");
+        self.write_punctuator_char('}');
     }
 
     #[inline]
@@ -147,7 +154,7 @@ impl Minifier {
             Selection::Field(f) => {
                 if let Some(ref alias) = f.alias {
                     self.write_non_punctuator(alias.as_ref());
-                    self.write_punctuator(":");
+                    self.write_punctuator_char(':');
                 }
                 self.write_non_punctuator(f.name.as_ref());
                 self.write_arguments(&f.arguments);
@@ -187,18 +194,18 @@ impl Minifier {
         if vars.is_empty() {
             return;
         }
-        self.write_punctuator("(");
+        self.write_punctuator_char('(');
         for var in vars {
-            self.write_punctuator("$");
+            self.write_punctuator_char('$');
             self.write_non_punctuator(var.name.as_ref());
-            self.write_punctuator(":");
+            self.write_punctuator_char(':');
             self.write_type(&var.var_type);
             if let Some(ref def) = var.default_value {
-                self.write_punctuator("=");
+                self.write_punctuator_char('=');
                 self.write_value(def);
             }
         }
-        self.write_punctuator(")");
+        self.write_punctuator_char(')');
     }
 
     #[inline]
@@ -206,13 +213,13 @@ impl Minifier {
         match ty {
             Type::NamedType(name) => self.write_non_punctuator(name.as_ref()),
             Type::ListType(inner) => {
-                self.write_punctuator("[");
+                self.write_punctuator_char('[');
                 self.write_type(inner);
-                self.write_punctuator("]");
+                self.write_punctuator_char(']');
             }
             Type::NonNullType(inner) => {
                 self.write_type(inner);
-                self.write_punctuator("!");
+                self.write_punctuator_char('!');
             }
         }
     }
@@ -220,23 +227,24 @@ impl Minifier {
     #[inline]
     fn write_directives<'a, T: Text<'a>>(&mut self, dirs: &[Directive<'a, T>]) {
         for dir in dirs {
-            self.write_punctuator("@");
+            self.write_punctuator_char('@');
             self.write_non_punctuator(dir.name.as_ref());
             self.write_arguments(&dir.arguments);
         }
     }
 
+    #[inline]
     fn write_arguments<'a, T: Text<'a>>(&mut self, args: &[(T::Value, Value<'a, T>)]) {
         if args.is_empty() {
             return;
         }
-        self.write_punctuator("(");
+        self.write_punctuator_char('(');
         for (name, val) in args {
             self.write_non_punctuator(name.as_ref());
-            self.write_punctuator(":");
+            self.write_punctuator_char(':');
             self.write_value(val);
         }
-        self.write_punctuator(")");
+        self.write_punctuator_char(')');
     }
 
     #[inline(always)]
@@ -250,20 +258,19 @@ impl Minifier {
         let mut needs_escaping = false;
 
         for &byte in bytes {
-            match byte {
-                b'\n' => has_newline = true,
-                b'"' | b'\\' | b'\r' | b'\t' => needs_escaping = true,
-                0..=0x1F | 0x7F => needs_escaping = true, // Control chars
-                _ => {}
+            if byte == b'\n' {
+                has_newline = true;
+            } else if byte == b'"' || byte == b'\\' || byte < 0x20 || byte == 0x7F {
+                needs_escaping = true;
             }
 
-            // Early exit if we found everything we need to know
             if has_newline && needs_escaping {
                 break;
             }
         }
 
         if !needs_escaping && !has_newline {
+            self.buf.reserve(s.len() + 2);
             self.buf.push('"');
             self.buf.push_str(s);
             self.buf.push('"');
@@ -273,6 +280,7 @@ impl Minifier {
 
         if !has_newline {
             use std::fmt::Write;
+            self.buf.reserve(s.len() + 16);
             self.buf.push('"');
             for c in s.chars() {
                 match c {
@@ -325,7 +333,7 @@ impl Minifier {
     fn write_value<'a, T: Text<'a>>(&mut self, val: &Value<'a, T>) {
         match val {
             Value::Variable(name) => {
-                self.write_punctuator("$");
+                self.write_punctuator_char('$');
                 self.write_non_punctuator(name.as_ref());
             }
             Value::Int(n) => {
@@ -350,20 +358,20 @@ impl Minifier {
             Value::Null => self.write_non_punctuator("null"),
             Value::Enum(name) => self.write_non_punctuator(name.as_ref()),
             Value::List(items) => {
-                self.write_punctuator("[");
+                self.write_punctuator_char('[');
                 for item in items {
                     self.write_value(item);
                 }
-                self.write_punctuator("]");
+                self.write_punctuator_char(']');
             }
             Value::Object(fields) => {
-                self.write_punctuator("{");
+                self.write_punctuator_char('{');
                 for (name, val) in fields {
                     self.write_non_punctuator(name.as_ref());
-                    self.write_punctuator(":");
+                    self.write_punctuator_char(':');
                     self.write_value(val);
                 }
-                self.write_punctuator("}");
+                self.write_punctuator_char('}');
             }
         }
     }
