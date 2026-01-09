@@ -375,33 +375,344 @@ mod tests {
         assert_eq!(minified_doc, minified_query);
     }
 
+    // #[test]
+    // fn minify_all_queries() {
+    //     use std::fs;
+    //     let paths = fs::read_dir("src/parser/tests/queries").unwrap();
+    //     let mut failed = false;
+
+    //     for path in paths {
+    //         let path = path.unwrap().path();
+    //         if path.extension().and_then(|s| s.to_str()) == Some("graphql") {
+    //             let source = fs::read_to_string(&path).unwrap();
+    //             let doc = crate::parser::query::grammar::parse_query::<String>(&source)
+    //                 .expect(&format!("parse failed for {:?}", path));
+    //             let minified_doc = super::minify_document(&doc);
+    //             let minified_query = super::minify_query(&source)
+    //                 .expect(&format!("minification failed for {:?}", path));
+
+    //             if minified_doc != minified_query {
+    //                 failed = true;
+    //                 println!("Minification failed for {:?}", path);
+    //                 println!("Minified Document: \"{}\"", minified_doc);
+    //                 println!("Minified Query:    \"{}\"", minified_query);
+    //             }
+    //         }
+    //     }
+
+    //     if failed {
+    //         panic!("Some queries failed to minify correctly");
+    //     }
+    // }
+
     #[test]
-    fn minify_all_queries() {
-        use std::fs;
-        let paths = fs::read_dir("src/parser/tests/queries").unwrap();
-        let mut failed = false;
+    fn test_minify_directive_args() {
+        let source =
+            std::fs::read_to_string("src/parser/tests/queries/directive_args.graphql").unwrap();
+        let minified_query = super::minify_query(&source).unwrap();
+        insta::assert_snapshot!(minified_query, @r#"query{node@dir(a:1 b:"2" c:true d:false e:null)}"#);
+    }
 
-        for path in paths {
-            let path = path.unwrap().path();
-            if path.extension().and_then(|s| s.to_str()) == Some("graphql") {
-                let source = fs::read_to_string(&path).unwrap();
-                let doc = crate::parser::query::grammar::parse_query::<String>(&source)
-                    .expect(&format!("parse failed for {:?}", path));
-                let minified_doc = super::minify_document(&doc);
-                let minified_query = super::minify_query(&source)
-                    .expect(&format!("minification failed for {:?}", path));
+    #[test]
+    fn test_minify_directive_args_multiline() {
+        let source =
+            std::fs::read_to_string("src/parser/tests/queries/directive_args_multiline.graphql")
+                .unwrap();
+        let minified_query = super::minify_query(&source).unwrap();
+        insta::assert_snapshot!(minified_query, @r#"query{node@dir(a:1 b:"2" c:true d:false e:null)}"#);
+    }
 
-                if minified_doc != minified_query {
-                    failed = true;
-                    println!("Minification failed for {:?}", path);
-                    println!("Minified Document: \"{}\"", minified_doc);
-                    println!("Minified Query:    \"{}\"", minified_query);
-                }
-            }
-        }
+    #[test]
+    fn test_minify_fragment() {
+        let source = std::fs::read_to_string("src/parser/tests/queries/fragment.graphql").unwrap();
+        let minified_query = super::minify_query(&source).unwrap();
+        insta::assert_snapshot!(minified_query, @"fragment frag on Friend{node}");
+    }
 
-        if failed {
-            panic!("Some queries failed to minify correctly");
-        }
+    #[test]
+    fn test_minify_fragment_spread() {
+        let source =
+            std::fs::read_to_string("src/parser/tests/queries/fragment_spread.graphql").unwrap();
+        let minified_query = super::minify_query(&source).unwrap();
+        insta::assert_snapshot!(minified_query, @"query{node{id...something}}");
+    }
+
+    #[test]
+    fn test_minify_inline_fragment() {
+        let source =
+            std::fs::read_to_string("src/parser/tests/queries/inline_fragment.graphql").unwrap();
+        let minified_query = super::minify_query(&source).unwrap();
+        insta::assert_snapshot!(minified_query, @"query{node{id...on User{name}}}");
+    }
+
+    #[test]
+    fn test_minify_inline_fragment_dir() {
+        let source =
+            std::fs::read_to_string("src/parser/tests/queries/inline_fragment_dir.graphql")
+                .unwrap();
+        let minified_query = super::minify_query(&source).unwrap();
+        insta::assert_snapshot!(minified_query, @"query{node{id...on User@defer{name}}}");
+    }
+
+    #[test]
+    fn test_minify_kitchen_sink() {
+        let source =
+            std::fs::read_to_string("src/parser/tests/queries/kitchen-sink.graphql").unwrap();
+        let minified_query = super::minify_query(&source).unwrap();
+        insta::assert_snapshot!(minified_query, @r#"
+        query queryName($foo:ComplexType$site:Site=MOBILE){whoever123is:node(id:[123 456]){id...on User@defer{field2{id alias:field1(first:10 after:$foo)@include(if:$foo){id...frag}}}...@skip(unless:$foo){id}...{id}}}mutation likeStory{like(story:123)@defer{story{id}}}subscription StoryLikeSubscription($input:StoryLikeSubscribeInput){storyLikeSubscribe(input:$input){story{likers{count}likeSentence{text}}}}fragment frag on Friend{foo(size:$size bar:$b obj:{key:"value" block:"""
+
+              block string uses \"""
+
+          """})}{unnamed(truthy:true falsey:false nullish:null)query}
+        "#);
+    }
+
+    #[test]
+    fn test_minify_kitchen_sink_canonical() {
+        let source =
+            std::fs::read_to_string("src/parser/tests/queries/kitchen-sink_canonical.graphql")
+                .unwrap();
+        let minified_query = super::minify_query(&source).unwrap();
+        insta::assert_snapshot!(minified_query, @r#"query queryName($foo:ComplexType$site:Site=MOBILE){whoever123is:node(id:[123 456]){id...on User@defer{field2{id alias:field1(first:10 after:$foo)@include(if:$foo){id...frag}}}...@skip(unless:$foo){id}...{id}}}mutation likeStory{like(story:123)@defer{story{id}}}subscription StoryLikeSubscription($input:StoryLikeSubscribeInput){storyLikeSubscribe(input:$input){story{likers{count}likeSentence{text}}}}fragment frag on Friend{foo(size:$size bar:$b obj:{block:"block string uses \"\"\"" key:"value"})}{unnamed(truthy:true falsey:false nullish:null)query}"#);
+    }
+
+    #[test]
+    fn test_minify_minimal() {
+        let source = std::fs::read_to_string("src/parser/tests/queries/minimal.graphql").unwrap();
+        let minified_query = super::minify_query(&source).unwrap();
+        insta::assert_snapshot!(minified_query, @"{a}");
+    }
+
+    #[test]
+    fn test_minify_minimal_mutation() {
+        let source =
+            std::fs::read_to_string("src/parser/tests/queries/minimal_mutation.graphql").unwrap();
+        let minified_query = super::minify_query(&source).unwrap();
+        insta::assert_snapshot!(minified_query, @"mutation{notify}");
+    }
+
+    #[test]
+    fn test_minify_minimal_query() {
+        let source =
+            std::fs::read_to_string("src/parser/tests/queries/minimal_query.graphql").unwrap();
+        let minified_query = super::minify_query(&source).unwrap();
+        insta::assert_snapshot!(minified_query, @"query{node}");
+    }
+
+    #[test]
+    fn test_minify_mutation_directive() {
+        let source =
+            std::fs::read_to_string("src/parser/tests/queries/mutation_directive.graphql").unwrap();
+        let minified_query = super::minify_query(&source).unwrap();
+        insta::assert_snapshot!(minified_query, @"mutation@directive{node}");
+    }
+
+    #[test]
+    fn test_minify_mutation_nameless_vars() {
+        let source =
+            std::fs::read_to_string("src/parser/tests/queries/mutation_nameless_vars.graphql")
+                .unwrap();
+        let minified_query = super::minify_query(&source).unwrap();
+        insta::assert_snapshot!(minified_query, @"mutation($first:Int$second:Int){field1(first:$first)field2(second:$second)}");
+    }
+
+    #[test]
+    fn test_minify_named_query() {
+        let source =
+            std::fs::read_to_string("src/parser/tests/queries/named_query.graphql").unwrap();
+        let minified_query = super::minify_query(&source).unwrap();
+        insta::assert_snapshot!(minified_query, @"query Foo{field}");
+    }
+
+    #[test]
+    fn test_minify_nested_selection() {
+        let source =
+            std::fs::read_to_string("src/parser/tests/queries/nested_selection.graphql").unwrap();
+        let minified_query = super::minify_query(&source).unwrap();
+        insta::assert_snapshot!(minified_query, @"query{node{id}}");
+    }
+
+    #[test]
+    fn test_minify_query_aliases() {
+        let source =
+            std::fs::read_to_string("src/parser/tests/queries/query_aliases.graphql").unwrap();
+        let minified_query = super::minify_query(&source).unwrap();
+        insta::assert_snapshot!(minified_query, @"query{an_alias:node}");
+    }
+
+    #[test]
+    fn test_minify_query_arguments() {
+        let source =
+            std::fs::read_to_string("src/parser/tests/queries/query_arguments.graphql").unwrap();
+        let minified_query = super::minify_query(&source).unwrap();
+        insta::assert_snapshot!(minified_query, @"query{node(id:1)}");
+    }
+
+    #[test]
+    fn test_minify_query_arguments_multiline() {
+        let source =
+            std::fs::read_to_string("src/parser/tests/queries/query_arguments_multiline.graphql")
+                .unwrap();
+        let minified_query = super::minify_query(&source).unwrap();
+        insta::assert_snapshot!(minified_query, @"query{node(id:1)node(id:1 one:3)}");
+    }
+
+    #[test]
+    fn test_minify_query_array_argument_multiline() {
+        let source = std::fs::read_to_string(
+            "src/parser/tests/queries/query_array_argument_multiline.graphql",
+        )
+        .unwrap();
+        let minified_query = super::minify_query(&source).unwrap();
+        insta::assert_snapshot!(minified_query, @"query{node(id:[5 6 7])}");
+    }
+
+    #[test]
+    fn test_minify_query_directive() {
+        let source =
+            std::fs::read_to_string("src/parser/tests/queries/query_directive.graphql").unwrap();
+        let minified_query = super::minify_query(&source).unwrap();
+        insta::assert_snapshot!(minified_query, @"query@directive{node}");
+    }
+
+    #[test]
+    fn test_minify_query_list_argument() {
+        let source =
+            std::fs::read_to_string("src/parser/tests/queries/query_list_argument.graphql")
+                .unwrap();
+        let minified_query = super::minify_query(&source).unwrap();
+        insta::assert_snapshot!(minified_query, @"query{node(id:1 list:[123 456])}");
+    }
+
+    #[test]
+    fn test_minify_query_nameless_vars() {
+        let source =
+            std::fs::read_to_string("src/parser/tests/queries/query_nameless_vars.graphql")
+                .unwrap();
+        let minified_query = super::minify_query(&source).unwrap();
+        insta::assert_snapshot!(minified_query, @"query($first:Int$second:Int){field1(first:$first)field2(second:$second)}");
+    }
+
+    #[test]
+    fn test_minify_query_nameless_vars_multiple_fields() {
+        let source = std::fs::read_to_string(
+            "src/parser/tests/queries/query_nameless_vars_multiple_fields.graphql",
+        )
+        .unwrap();
+        let minified_query = super::minify_query(&source).unwrap();
+        insta::assert_snapshot!(minified_query, @"query($houseId:String!$streetNumber:Int!){house(id:$houseId){id name lat lng}street(number:$streetNumber){id}houseStreet(id:$houseId number:$streetNumber){id}}");
+    }
+
+    #[test]
+    fn test_minify_query_nameless_vars_multiple_fields_canonical() {
+        let source = std::fs::read_to_string(
+            "src/parser/tests/queries/query_nameless_vars_multiple_fields_canonical.graphql",
+        )
+        .unwrap();
+        let minified_query = super::minify_query(&source).unwrap();
+        insta::assert_snapshot!(minified_query, @"query($houseId:String!$streetNumber:Int!){house(id:$houseId){id name lat lng}street(number:$streetNumber){id}houseStreet(id:$houseId number:$streetNumber){id}}");
+    }
+
+    #[test]
+    fn test_minify_query_object_argument() {
+        let source =
+            std::fs::read_to_string("src/parser/tests/queries/query_object_argument.graphql")
+                .unwrap();
+        let minified_query = super::minify_query(&source).unwrap();
+        insta::assert_snapshot!(minified_query, @"query{node(id:1 obj:{key1:123 key2:456})}");
+    }
+
+    #[test]
+    fn test_minify_query_object_argument_multiline() {
+        let source = std::fs::read_to_string(
+            "src/parser/tests/queries/query_object_argument_multiline.graphql",
+        )
+        .unwrap();
+        let minified_query = super::minify_query(&source).unwrap();
+        insta::assert_snapshot!(minified_query, @"query{node(id:1 obj:{key1:123 key2:456})}");
+    }
+
+    #[test]
+    fn test_minify_query_var_default_float() {
+        let source =
+            std::fs::read_to_string("src/parser/tests/queries/query_var_default_float.graphql")
+                .unwrap();
+        let minified_query = super::minify_query(&source).unwrap();
+        insta::assert_snapshot!(minified_query, @"query Foo($site:Float=0.5){field}");
+    }
+
+    #[test]
+    fn test_minify_query_var_default_list() {
+        let source =
+            std::fs::read_to_string("src/parser/tests/queries/query_var_default_list.graphql")
+                .unwrap();
+        let minified_query = super::minify_query(&source).unwrap();
+        insta::assert_snapshot!(minified_query, @"query Foo($site:[Int]=[123 456]){field}");
+    }
+
+    #[test]
+    fn test_minify_query_var_default_object() {
+        let source =
+            std::fs::read_to_string("src/parser/tests/queries/query_var_default_object.graphql")
+                .unwrap();
+        let minified_query = super::minify_query(&source).unwrap();
+        insta::assert_snapshot!(minified_query, @"query Foo($site:Site={url:null}){field}");
+    }
+
+    #[test]
+    fn test_minify_query_var_default_string() {
+        let source =
+            std::fs::read_to_string("src/parser/tests/queries/query_var_default_string.graphql")
+                .unwrap();
+        let minified_query = super::minify_query(&source).unwrap();
+        insta::assert_snapshot!(minified_query, @r#"query Foo($site:String="string"){field}"#);
+    }
+
+    #[test]
+    fn test_minify_query_var_defaults() {
+        let source =
+            std::fs::read_to_string("src/parser/tests/queries/query_var_defaults.graphql").unwrap();
+        let minified_query = super::minify_query(&source).unwrap();
+        insta::assert_snapshot!(minified_query, @"query Foo($site:Site=MOBILE){field}");
+    }
+
+    #[test]
+    fn test_minify_query_vars() {
+        let source =
+            std::fs::read_to_string("src/parser/tests/queries/query_vars.graphql").unwrap();
+        let minified_query = super::minify_query(&source).unwrap();
+        insta::assert_snapshot!(minified_query, @"query Foo($arg:SomeType){field}");
+    }
+
+    #[test]
+    fn test_minify_string_literal() {
+        let source =
+            std::fs::read_to_string("src/parser/tests/queries/string_literal.graphql").unwrap();
+        let minified_query = super::minify_query(&source).unwrap();
+        insta::assert_snapshot!(minified_query, @r#"query{node(id:"hello")}"#);
+    }
+
+    #[test]
+    fn test_minify_subscription_directive() {
+        let source =
+            std::fs::read_to_string("src/parser/tests/queries/subscription_directive.graphql")
+                .unwrap();
+        let minified_query = super::minify_query(&source).unwrap();
+        insta::assert_snapshot!(minified_query, @"subscription@directive{node}");
+    }
+
+    #[test]
+    fn test_minify_triple_quoted_literal() {
+        let source =
+            std::fs::read_to_string("src/parser/tests/queries/triple_quoted_literal.graphql")
+                .unwrap();
+        let minified_query = super::minify_query(&source).unwrap();
+        insta::assert_snapshot!(minified_query, @r#"
+        query{node(id:"""
+            Hello,
+              world!
+          """)}
+        "#);
     }
 }
