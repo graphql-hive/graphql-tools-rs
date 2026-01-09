@@ -374,4 +374,34 @@ mod tests {
 
         assert_eq!(minified_doc, minified_query);
     }
+
+    #[test]
+    fn minify_all_queries() {
+        use std::fs;
+        let paths = fs::read_dir("src/parser/tests/queries").unwrap();
+        let mut failed = false;
+
+        for path in paths {
+            let path = path.unwrap().path();
+            if path.extension().and_then(|s| s.to_str()) == Some("graphql") {
+                let source = fs::read_to_string(&path).unwrap();
+                let doc = crate::parser::query::grammar::parse_query::<String>(&source)
+                    .expect(&format!("parse failed for {:?}", path));
+                let minified_doc = super::minify_document(&doc);
+                let minified_query = super::minify_query(&source)
+                    .expect(&format!("minification failed for {:?}", path));
+
+                if minified_doc != minified_query {
+                    failed = true;
+                    println!("Minification failed for {:?}", path);
+                    println!("Minified Document: \"{}\"", minified_doc);
+                    println!("Minified Query:    \"{}\"", minified_query);
+                }
+            }
+        }
+
+        if failed {
+            panic!("Some queries failed to minify correctly");
+        }
+    }
 }
