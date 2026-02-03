@@ -1,3 +1,6 @@
+> [!IMPORTANT]
+> The content of this repository and the Crate's source code has been moved to [`hive-router` repository](https://github.com/graphql-hive/router/tree/main/lib/graphql-tools).
+
 ## `graphql-tools` (Rust)
 
 [Documentation](https://docs.rs/graphql-tools) | [Crate](https://crates.io/crates/graphql-tools) | [GitHub](https://github.com/dotansimha/graphql-tools-rs)
