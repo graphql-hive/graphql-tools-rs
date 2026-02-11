@@ -25,6 +25,7 @@ pub mod unique_variable_names;
 pub mod values_of_correct_type;
 pub mod variables_are_input_types;
 pub mod variables_in_allowed_position;
+pub mod known_operation_types;
 
 pub use self::defaults::*;
 pub use self::rule::*;
@@ -53,3 +54,4 @@ pub use self::unique_variable_names::*;
 pub use self::values_of_correct_type::*;
 pub use self::variables_are_input_types::*;
 pub use self::variables_in_allowed_position::*;
+pub use self::known_operation_types::*;
